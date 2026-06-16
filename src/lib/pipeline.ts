@@ -5,7 +5,7 @@ import {
   insertCluster,
   insertOpportunity,
   clearGeneratedArtifacts,
-  snapshotOpportunityStatuses,
+  snapshotOpportunityMeta,
   upsertTrend,
 } from "@/db/repo";
 import { clusterReviews } from "./clustering";
@@ -32,8 +32,8 @@ export async function runPipeline(): Promise<{
       return { runId, clusters: 0, opportunities: 0, log };
     }
 
-    // Preserve human-set statuses across regeneration, then rebuild artifacts.
-    const priorStatuses = await snapshotOpportunityStatuses();
+    // Preserve human-set status + notes across regeneration, then rebuild.
+    const priorMeta = await snapshotOpportunityMeta();
     await clearGeneratedArtifacts();
 
     const clusters = clusterReviews(reviews);
@@ -80,8 +80,8 @@ export async function runPipeline(): Promise<{
         }
       }
 
-      const carried = priorStatuses[card.title] ?? "new";
-      await insertOpportunity(runId, clusterId, card, carried);
+      const meta = priorMeta[card.title];
+      await insertOpportunity(runId, clusterId, card, meta?.status ?? "new", meta?.notes ?? "");
       oppCount++;
     }
 

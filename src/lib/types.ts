@@ -77,6 +77,7 @@ export interface Opportunity {
   reverseDiligence: string; // 反向尽调：竞品为何还没解决
   score: ScoreBreakdown;
   status: OpportunityStatus;
+  notes: string; // 用户私人笔记
   createdAt: string;
 }
 

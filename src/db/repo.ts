@@ -66,6 +66,7 @@ function toOpportunity(r: Row): Opportunity {
       total: Number(r.score_total),
     },
     status: String(r.status) as OpportunityStatus,
+    notes: r.notes !== undefined && r.notes !== null ? String(r.notes) : "",
     createdAt: String(r.created_at),
   };
 }
@@ -293,14 +294,15 @@ export async function insertOpportunity(
   runId: number | null,
   clusterId: number | null,
   o: import("@/lib/cards").GeneratedCard,
-  status: OpportunityStatus = "new"
+  status: OpportunityStatus = "new",
+  notes = ""
 ): Promise<number> {
   const res = await query(
     `INSERT INTO opportunities
       (run_id, cluster_id, title, pain_point, target_users, evidence, frequency,
        existing_solutions, gaps, suggested_format, reverse_diligence,
-       score_demand, score_payment, score_gap, score_timing, score_total, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       score_demand, score_payment, score_gap, score_timing, score_total, status, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       runId,
       clusterId,
@@ -319,19 +321,29 @@ export async function insertOpportunity(
       o.score.timing,
       o.score.total,
       status,
+      notes,
     ]
   );
   return Number(res.lastInsertRowid);
 }
 
-// Snapshot human-set statuses before a re-run, keyed by a stable signature
+// Snapshot human-set status + notes before a re-run, keyed by a stable signature
 // (title) so annotations survive pipeline regeneration.
-export async function snapshotOpportunityStatuses(): Promise<Record<string, OpportunityStatus>> {
+export interface OpportunityMeta {
+  status: OpportunityStatus;
+  notes: string;
+}
+export async function snapshotOpportunityMeta(): Promise<Record<string, OpportunityMeta>> {
   const res = await query(
-    `SELECT title, status FROM opportunities WHERE status != 'new'`
+    `SELECT title, status, notes FROM opportunities WHERE status != 'new' OR notes != ''`
   );
-  const map: Record<string, OpportunityStatus> = {};
-  for (const r of res.rows) map[String(r.title)] = String(r.status) as OpportunityStatus;
+  const map: Record<string, OpportunityMeta> = {};
+  for (const r of res.rows) {
+    map[String(r.title)] = {
+      status: String(r.status) as OpportunityStatus,
+      notes: r.notes !== undefined && r.notes !== null ? String(r.notes) : "",
+    };
+  }
   return map;
 }
 
@@ -384,6 +396,22 @@ export async function updateOpportunityStatus(id: number, status: OpportunitySta
   await query(`UPDATE opportunities SET status = ? WHERE id = ?`, [status, id]);
 }
 
+export async function updateOpportunityNotes(id: number, notes: string): Promise<void> {
+  await query(`UPDATE opportunities SET notes = ? WHERE id = ?`, [notes, id]);
+}
+
+// Full-text-ish search over opportunities (title / pain / users / gaps).
+export async function searchOpportunities(q: string, limit = 30): Promise<Opportunity[]> {
+  const like = `%${q}%`;
+  const res = await query(
+    `SELECT * FROM opportunities
+     WHERE title LIKE ? OR pain_point LIKE ? OR target_users LIKE ? OR gaps LIKE ?
+     ORDER BY score_total DESC LIMIT ?`,
+    [like, like, like, like, limit]
+  );
+  return res.rows.map(toOpportunity);
+}
+
 export async function clearGeneratedArtifacts(): Promise<void> {
   // Fresh pipeline run: drop prior clusters & opportunities (reviews/apps kept).
   await query(`DELETE FROM opportunities`);
@@ -410,6 +438,64 @@ export async function upsertTrend(t: {
 export async function listTrends(limit = 30): Promise<Trend[]> {
   const res = await query(`SELECT * FROM trends ORDER BY momentum DESC LIMIT ?`, [limit]);
   return res.rows.map(toTrend);
+}
+
+// ── Settings (key/value JSON) ────────────────────────────────
+export async function getSetting<T>(key: string, fallback: T): Promise<T> {
+  const res = await query(`SELECT value FROM settings WHERE key = ?`, [key]);
+  if (!res.rows[0]) return fallback;
+  try {
+    return JSON.parse(String(res.rows[0].value)) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function setSetting(key: string, value: unknown): Promise<void> {
+  await query(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+    [key, JSON.stringify(value)]
+  );
+}
+
+// ── Search ───────────────────────────────────────────────────
+export async function searchReviews(q: string, limit = 30): Promise<Review[]> {
+  const like = `%${q}%`;
+  const res = await query(
+    `SELECT r.*, a.name AS app_name, a.platform AS app_platform
+     FROM reviews r JOIN apps a ON a.id = r.app_id
+     WHERE r.content LIKE ? OR r.title LIKE ?
+     ORDER BY r.rating ASC LIMIT ?`,
+    [like, like, limit]
+  );
+  return res.rows.map(toReview);
+}
+
+// ── Data management ──────────────────────────────────────────
+export async function clearAllData(): Promise<void> {
+  await query(`DELETE FROM opportunities`);
+  await query(`DELETE FROM cluster_reviews`);
+  await query(`DELETE FROM pain_clusters`);
+  await query(`DELETE FROM trends`);
+  await query(`DELETE FROM reviews`);
+  await query(`DELETE FROM apps`);
+  await query(`DELETE FROM runs`);
+}
+
+// Score distribution buckets for the dashboard.
+export async function scoreDistribution(): Promise<{ tier: string; count: number }[]> {
+  await ensureSchema();
+  const res = await query(`SELECT score_total AS s FROM opportunities`);
+  const buckets = { 高潜力: 0, 值得关注: 0, 观察中: 0, 信号弱: 0 };
+  for (const r of res.rows) {
+    const s = Number(r.s);
+    if (s >= 75) buckets["高潜力"]++;
+    else if (s >= 55) buckets["值得关注"]++;
+    else if (s >= 35) buckets["观察中"]++;
+    else buckets["信号弱"]++;
+  }
+  return Object.entries(buckets).map(([tier, count]) => ({ tier, count }));
 }
 
 // ── Dashboard stats ──────────────────────────────────────────

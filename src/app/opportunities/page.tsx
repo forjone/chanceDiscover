@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { listOpportunities, type OpportunitySort } from "@/db/repo";
 import { PageHeader, ScoreRing, ScoreBars, TierBadge, EmptyState } from "@/components/ui";
 import RunPipelineButton from "@/components/RunPipelineButton";
+import ExportMenu from "@/components/ExportMenu";
 import type { OpportunityStatus } from "@/lib/types";
 
 const SORTS: { value: OpportunitySort; label: string }[] = [
@@ -49,7 +50,16 @@ export default async function OpportunitiesPage({
       <PageHeader
         title="机会卡片"
         subtitle="按总分排序的产品机会，每张卡片都带证据与反向尽调。"
-        action={<RunPipelineButton label="重新挖掘" />}
+        action={
+          opportunities.length > 0 ? (
+            <div className="flex items-center gap-4">
+              <ExportMenu />
+              <RunPipelineButton label="重新挖掘" />
+            </div>
+          ) : (
+            <RunPipelineButton label="重新挖掘" />
+          )
+        }
       />
 
       <div className="mb-3 flex flex-wrap gap-2">

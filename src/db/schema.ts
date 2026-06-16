@@ -96,4 +96,16 @@ export const SCHEMA_STATEMENTS: string[] = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (keyword, source)
   )`,
+
+  `CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+];
+
+// Idempotent migrations for columns added after the initial schema. Each runs
+// inside ensureSchema and tolerates "duplicate column" on already-migrated DBs.
+export const MIGRATIONS: string[] = [
+  `ALTER TABLE opportunities ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
 ];

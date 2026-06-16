@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Gem,
@@ -10,6 +11,8 @@ import {
   TrendingUp,
   History,
   Pickaxe,
+  Settings,
+  Search,
 } from "lucide-react";
 
 const NAV = [
@@ -19,10 +22,19 @@ const NAV = [
   { href: "/apps", label: "应用矿源", icon: AppWindow },
   { href: "/trends", label: "趋势监控", icon: TrendingUp },
   { href: "/runs", label: "挖掘记录", icon: History },
+  { href: "/settings", label: "设置", icon: Settings },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [q, setQ] = useState("");
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (q.trim()) router.push(`/search?q=${encodeURIComponent(q.trim())}`);
+  }
+
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-60 flex-col border-r border-rock-800 bg-rock-950/80 backdrop-blur">
       <div className="flex items-center gap-3 px-5 py-5">
@@ -35,7 +47,19 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="mt-2 flex-1 space-y-1 px-3">
+      <form onSubmit={submit} className="px-3 pb-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-rock-500" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="搜索机会 / 评论"
+            className="w-full rounded-xl border border-rock-700 bg-rock-950/60 py-1.5 pl-8 pr-3 text-xs text-rock-100 placeholder-rock-500 outline-none focus:border-ore-500/60"
+          />
+        </div>
+      </form>
+
+      <nav className="mt-1 flex-1 space-y-1 px-3">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (

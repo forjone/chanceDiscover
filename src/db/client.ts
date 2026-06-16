@@ -1,5 +1,5 @@
 import { createClient, type Client } from "@libsql/client";
-import { SCHEMA_STATEMENTS } from "./schema";
+import { SCHEMA_STATEMENTS, MIGRATIONS } from "./schema";
 
 // Singleton libSQL client. Works with a local file (default) or remote Turso.
 let _client: Client | null = null;
@@ -23,6 +23,14 @@ export async function ensureSchema(): Promise<void> {
       const client = db();
       for (const stmt of SCHEMA_STATEMENTS) {
         await client.execute(stmt);
+      }
+      // Apply additive migrations; ignore "duplicate column" on migrated DBs.
+      for (const stmt of MIGRATIONS) {
+        try {
+          await client.execute(stmt);
+        } catch (err) {
+          if (!/duplicate column/i.test(String((err as Error).message))) throw err;
+        }
       }
     })();
   }

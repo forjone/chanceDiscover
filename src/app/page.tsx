@@ -1,13 +1,22 @@
 import Link from "next/link";
 import { AppWindow, MessageSquareText, Gem, Layers, ArrowRight } from "lucide-react";
-import { dashboardStats } from "@/db/repo";
+import { dashboardStats, scoreDistribution } from "@/db/repo";
 import { PageHeader, Stat, ScoreRing, TierBadge, EmptyState } from "@/components/ui";
 import RunPipelineButton from "@/components/RunPipelineButton";
+import ExportMenu from "@/components/ExportMenu";
 
 export const dynamic = "force-dynamic";
 
+const TIER_TONE: Record<string, string> = {
+  高潜力: "bg-ore-400",
+  值得关注: "bg-emerald-400",
+  观察中: "bg-sky-400",
+  信号弱: "bg-rock-500",
+};
+
 export default async function DashboardPage() {
-  const stats = await dashboardStats();
+  const [stats, dist] = await Promise.all([dashboardStats(), scoreDistribution()]);
+  const distTotal = dist.reduce((s, d) => s + d.count, 0);
 
   return (
     <>
@@ -23,6 +32,35 @@ export default async function DashboardPage() {
         <Stat label="痛点簇" value={stats.clusters} icon={<Layers className="h-4 w-4" />} hint="聚类结果" />
         <Stat label="机会卡片" value={stats.opportunities} icon={<Gem className="h-4 w-4" />} hint="已生成并打分" />
       </div>
+
+      {distTotal > 0 && (
+        <div className="mt-6 card p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-rock-200">机会分布</h2>
+            <ExportMenu />
+          </div>
+          <div className="flex h-3 w-full overflow-hidden rounded-full bg-rock-800">
+            {dist.map((d) =>
+              d.count > 0 ? (
+                <div
+                  key={d.tier}
+                  className={TIER_TONE[d.tier]}
+                  style={{ width: `${(d.count / distTotal) * 100}%` }}
+                  title={`${d.tier} ${d.count}`}
+                />
+              ) : null
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-4">
+            {dist.map((d) => (
+              <div key={d.tier} className="flex items-center gap-2 text-xs text-rock-400">
+                <span className={`h-2.5 w-2.5 rounded-full ${TIER_TONE[d.tier]}`} />
+                {d.tier} <span className="tabular-nums text-rock-300">{d.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <div className="mb-3 flex items-center justify-between">

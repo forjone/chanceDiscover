@@ -15,6 +15,7 @@ import { PageHeader, ScoreRing, ScoreBars, TierBadge, Stars } from "@/components
 import StatusControl from "@/components/StatusControl";
 import ExportButton from "@/components/ExportButton";
 import OpportunityReviews from "@/components/OpportunityReviews";
+import NotesEditor from "@/components/NotesEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,7 @@ export default async function OpportunityDetail({ params }: { params: { id: stri
             <div className="mb-2 text-xs text-rock-400">状态</div>
             <StatusControl id={o.id} status={o.status} />
           </div>
+          <NotesEditor id={o.id} initial={o.notes} />
         </div>
 
         {/* Narrative */}
