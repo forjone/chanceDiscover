@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { listOpportunities, type OpportunitySort } from "@/db/repo";
+import { listOpportunities, listTags, type OpportunitySort } from "@/db/repo";
 import { PageHeader, ScoreRing, ScoreBars, TierBadge, EmptyState } from "@/components/ui";
 import RunPipelineButton from "@/components/RunPipelineButton";
 import ExportMenu from "@/components/ExportMenu";
@@ -29,18 +29,24 @@ const FILTERS: { value: string; label: string }[] = [
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: { status?: string; sort?: string };
+  searchParams: { status?: string; sort?: string; tag?: string };
 }) {
   const status = (searchParams.status || "") as OpportunityStatus | "";
   const sort = (searchParams.sort || "total") as OpportunitySort;
-  const opportunities = await listOpportunities({ status: status || undefined, sort, limit: 200 });
+  const tag = searchParams.tag || "";
+  const [opportunities, allTags] = await Promise.all([
+    listOpportunities({ status: status || undefined, sort, tag: tag || undefined, limit: 200 }),
+    listTags(),
+  ]);
 
-  const qs = (next: { status?: string; sort?: string }) => {
+  const qs = (next: { status?: string; sort?: string; tag?: string }) => {
     const s = next.status ?? status;
     const so = next.sort ?? sort;
+    const tg = next.tag ?? tag;
     const p = new URLSearchParams();
     if (s) p.set("status", s);
     if (so && so !== "total") p.set("sort", so);
+    if (tg) p.set("tag", tg);
     const str = p.toString();
     return str ? `/opportunities?${str}` : "/opportunities";
   };
@@ -93,6 +99,26 @@ export default async function OpportunitiesPage({
         })}
       </div>
 
+      {allTags.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-rock-500">标签</span>
+          {tag && (
+            <Link href={qs({ tag: "" })} className="chip border-rock-700 text-rock-400">
+              全部
+            </Link>
+          )}
+          {allTags.map((t) => (
+            <Link
+              key={t.tag}
+              href={qs({ tag: t.tag })}
+              className={`chip ${tag === t.tag ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : ""}`}
+            >
+              {t.tag} <span className="text-rock-600">{t.count}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {opportunities.length === 0 ? (
         <EmptyState
           title="暂无机会卡片"
@@ -122,6 +148,13 @@ export default async function OpportunitiesPage({
                     {o.title}
                   </h3>
                   <p className="mt-1 line-clamp-2 text-sm text-rock-400">{o.painPoint}</p>
+                  {o.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {o.tags.map((t) => (
+                        <span key={t} className="rounded-full bg-rock-800 px-2 py-0.5 text-[10px] text-rock-300">{t}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <ScoreBars score={o.score} compact />

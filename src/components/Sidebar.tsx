@@ -13,11 +13,13 @@ import {
   Pickaxe,
   Settings,
   Search,
+  KanbanSquare,
 } from "lucide-react";
 
 const NAV = [
   { href: "/", label: "总览", icon: LayoutDashboard },
   { href: "/opportunities", label: "机会卡片", icon: Gem },
+  { href: "/board", label: "机会看板", icon: KanbanSquare },
   { href: "/reviews", label: "评论数据", icon: MessageSquareText },
   { href: "/apps", label: "应用矿源", icon: AppWindow },
   { href: "/trends", label: "趋势监控", icon: TrendingUp },

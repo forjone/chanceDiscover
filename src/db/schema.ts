@@ -103,6 +103,16 @@ export const SCHEMA_STATEMENTS: string[] = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
 
+  // Lightweight collaboration activity log (who changed what).
+  `CREATE TABLE IF NOT EXISTS activity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    opp_title TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    member TEXT NOT NULL DEFAULT '匿名',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
   // Append-only per-run cluster snapshots — powers pain-point evolution tracking
   // across runs (pain_clusters is rebuilt each run; this is never cleared).
   `CREATE TABLE IF NOT EXISTS cluster_snapshots (
@@ -135,4 +145,5 @@ export const SCHEMA_STATEMENTS: string[] = [
 // inside ensureSchema and tolerates "duplicate column" on already-migrated DBs.
 export const MIGRATIONS: string[] = [
   `ALTER TABLE opportunities ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE opportunities ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`,
 ];

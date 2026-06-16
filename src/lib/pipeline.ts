@@ -82,7 +82,7 @@ export async function runPipeline(): Promise<{
       }
 
       const meta = priorMeta[card.title];
-      await insertOpportunity(runId, clusterId, card, meta?.status ?? "new", meta?.notes ?? "");
+      await insertOpportunity(runId, clusterId, card, meta?.status ?? "new", meta?.notes ?? "", meta?.tags ?? []);
 
       // Append-only snapshot for cross-run pain evolution.
       await insertSnapshot({

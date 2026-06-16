@@ -67,6 +67,7 @@ function toOpportunity(r: Row): Opportunity {
     },
     status: String(r.status) as OpportunityStatus,
     notes: r.notes !== undefined && r.notes !== null ? String(r.notes) : "",
+    tags: r.tags ? JSON.parse(String(r.tags)) : [],
     createdAt: String(r.created_at),
   };
 }
@@ -295,14 +296,15 @@ export async function insertOpportunity(
   clusterId: number | null,
   o: import("@/lib/cards").GeneratedCard,
   status: OpportunityStatus = "new",
-  notes = ""
+  notes = "",
+  tags: string[] = []
 ): Promise<number> {
   const res = await query(
     `INSERT INTO opportunities
       (run_id, cluster_id, title, pain_point, target_users, evidence, frequency,
        existing_solutions, gaps, suggested_format, reverse_diligence,
-       score_demand, score_payment, score_gap, score_timing, score_total, status, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       score_demand, score_payment, score_gap, score_timing, score_total, status, notes, tags)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       runId,
       clusterId,
@@ -322,6 +324,7 @@ export async function insertOpportunity(
       o.score.total,
       status,
       notes,
+      JSON.stringify(tags),
     ]
   );
   return Number(res.lastInsertRowid);
@@ -332,16 +335,18 @@ export async function insertOpportunity(
 export interface OpportunityMeta {
   status: OpportunityStatus;
   notes: string;
+  tags: string[];
 }
 export async function snapshotOpportunityMeta(): Promise<Record<string, OpportunityMeta>> {
   const res = await query(
-    `SELECT title, status, notes FROM opportunities WHERE status != 'new' OR notes != ''`
+    `SELECT title, status, notes, tags FROM opportunities WHERE status != 'new' OR notes != '' OR tags != '[]'`
   );
   const map: Record<string, OpportunityMeta> = {};
   for (const r of res.rows) {
     map[String(r.title)] = {
       status: String(r.status) as OpportunityStatus,
       notes: r.notes !== undefined && r.notes !== null ? String(r.notes) : "",
+      tags: r.tags ? JSON.parse(String(r.tags)) : [],
     };
   }
   return map;
@@ -374,12 +379,22 @@ const SORT_COLUMN: Record<OpportunitySort, string> = {
 };
 
 export async function listOpportunities(
-  opts: { status?: OpportunityStatus; sort?: OpportunitySort; limit?: number } = {}
+  opts: { status?: OpportunityStatus; sort?: OpportunitySort; tag?: string; limit?: number } = {}
 ): Promise<Opportunity[]> {
   const limit = opts.limit ?? 100;
-  const where = opts.status ? `WHERE status = ?` : "";
-  const args = opts.status ? [opts.status, limit] : [limit];
+  const conds: string[] = [];
+  const args: (string | number)[] = [];
+  if (opts.status) {
+    conds.push(`status = ?`);
+    args.push(opts.status);
+  }
+  if (opts.tag) {
+    conds.push(`tags LIKE ?`);
+    args.push(`%${JSON.stringify(opts.tag).slice(1, -1)}%`); // match the quoted tag inside the JSON array
+  }
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
   const orderBy = SORT_COLUMN[opts.sort || "total"] || SORT_COLUMN.total;
+  args.push(limit);
   const res = await query(
     `SELECT * FROM opportunities ${where} ORDER BY ${orderBy}, created_at DESC LIMIT ?`,
     args
@@ -398,6 +413,22 @@ export async function updateOpportunityStatus(id: number, status: OpportunitySta
 
 export async function updateOpportunityNotes(id: number, notes: string): Promise<void> {
   await query(`UPDATE opportunities SET notes = ? WHERE id = ?`, [notes, id]);
+}
+
+export async function updateOpportunityTags(id: number, tags: string[]): Promise<void> {
+  await query(`UPDATE opportunities SET tags = ? WHERE id = ?`, [JSON.stringify(tags), id]);
+}
+
+// Distinct tags across all opportunities, with counts.
+export async function listTags(): Promise<{ tag: string; count: number }[]> {
+  const res = await query(`SELECT tags FROM opportunities WHERE tags != '[]'`);
+  const counts = new Map<string, number>();
+  for (const r of res.rows) {
+    for (const t of JSON.parse(String(r.tags)) as string[]) {
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+  }
+  return [...counts.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
 }
 
 // Full-text-ish search over opportunities (title / pain / users / gaps).
@@ -470,6 +501,33 @@ export async function searchReviews(q: string, limit = 30): Promise<Review[]> {
     [like, like, limit]
   );
   return res.rows.map(toReview);
+}
+
+// ── Activity log (collaboration) ─────────────────────────────
+import type { Activity } from "@/lib/types";
+
+export async function logActivity(a: {
+  oppTitle: string;
+  action: string;
+  detail?: string;
+  member?: string;
+}): Promise<void> {
+  await query(
+    `INSERT INTO activity (opp_title, action, detail, member) VALUES (?, ?, ?, ?)`,
+    [a.oppTitle, a.action, a.detail || "", a.member || "匿名"]
+  );
+}
+
+export async function listActivity(limit = 40): Promise<Activity[]> {
+  const res = await query(`SELECT * FROM activity ORDER BY created_at DESC LIMIT ?`, [limit]);
+  return res.rows.map((r) => ({
+    id: Number(r.id),
+    oppTitle: String(r.opp_title),
+    action: String(r.action),
+    detail: String(r.detail),
+    member: String(r.member),
+    createdAt: String(r.created_at),
+  }));
 }
 
 // ── Cluster snapshots / pain evolution ───────────────────────
@@ -571,6 +629,7 @@ export async function clearAllData(): Promise<void> {
   await query(`DELETE FROM runs`);
   await query(`DELETE FROM artifacts`);
   await query(`DELETE FROM cluster_snapshots`);
+  await query(`DELETE FROM activity`);
 }
 
 // Score distribution buckets for the dashboard.

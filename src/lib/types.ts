@@ -78,6 +78,16 @@ export interface Opportunity {
   score: ScoreBreakdown;
   status: OpportunityStatus;
   notes: string; // 用户私人笔记
+  tags: string[]; // 自定义标签
+  createdAt: string;
+}
+
+export interface Activity {
+  id: number;
+  oppTitle: string;
+  action: string;
+  detail: string;
+  member: string;
   createdAt: string;
 }
 

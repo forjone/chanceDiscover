@@ -7,6 +7,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get("status") as OpportunityStatus | null;
-  const opportunities = await listOpportunities({ status: status || undefined, limit: 200 });
+  const tag = req.nextUrl.searchParams.get("tag");
+  const opportunities = await listOpportunities({
+    status: status || undefined,
+    tag: tag || undefined,
+    limit: 200,
+  });
   return NextResponse.json({ opportunities });
 }
