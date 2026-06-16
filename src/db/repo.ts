@@ -147,6 +147,19 @@ export async function getApp(id: number): Promise<App | null> {
   return res.rows[0] ? toApp(res.rows[0]) : null;
 }
 
+// Store-backed apps (re-collectable). Excludes manual-entry sources.
+export async function listStoreApps(): Promise<App[]> {
+  const res = await query(
+    `SELECT * FROM apps WHERE store_id NOT LIKE 'manual-%' ORDER BY created_at DESC`
+  );
+  return res.rows.map(toApp);
+}
+
+export async function deleteApp(id: number): Promise<void> {
+  // reviews cascade via FK; clear any orphaned generated artifacts afterwards.
+  await query(`DELETE FROM apps WHERE id = ?`, [id]);
+}
+
 // ── Reviews ──────────────────────────────────────────────────
 export async function insertReview(input: {
   appId: number;
@@ -279,14 +292,15 @@ export async function listClusters(limit = 50): Promise<PainCluster[]> {
 export async function insertOpportunity(
   runId: number | null,
   clusterId: number | null,
-  o: import("@/lib/cards").GeneratedCard
+  o: import("@/lib/cards").GeneratedCard,
+  status: OpportunityStatus = "new"
 ): Promise<number> {
   const res = await query(
     `INSERT INTO opportunities
       (run_id, cluster_id, title, pain_point, target_users, evidence, frequency,
        existing_solutions, gaps, suggested_format, reverse_diligence,
-       score_demand, score_payment, score_gap, score_timing, score_total)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       score_demand, score_payment, score_gap, score_timing, score_total, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       runId,
       clusterId,
@@ -304,9 +318,35 @@ export async function insertOpportunity(
       o.score.gap,
       o.score.timing,
       o.score.total,
+      status,
     ]
   );
   return Number(res.lastInsertRowid);
+}
+
+// Snapshot human-set statuses before a re-run, keyed by a stable signature
+// (title) so annotations survive pipeline regeneration.
+export async function snapshotOpportunityStatuses(): Promise<Record<string, OpportunityStatus>> {
+  const res = await query(
+    `SELECT title, status FROM opportunities WHERE status != 'new'`
+  );
+  const map: Record<string, OpportunityStatus> = {};
+  for (const r of res.rows) map[String(r.title)] = String(r.status) as OpportunityStatus;
+  return map;
+}
+
+// Member reviews behind an opportunity's cluster (the raw evidence).
+export async function getClusterReviews(clusterId: number): Promise<Review[]> {
+  const res = await query(
+    `SELECT r.*, a.name AS app_name, a.platform AS app_platform
+     FROM cluster_reviews cr
+     JOIN reviews r ON r.id = cr.review_id
+     JOIN apps a ON a.id = r.app_id
+     WHERE cr.cluster_id = ?
+     ORDER BY r.rating ASC, r.sentiment ASC`,
+    [clusterId]
+  );
+  return res.rows.map(toReview);
 }
 
 export async function listOpportunities(

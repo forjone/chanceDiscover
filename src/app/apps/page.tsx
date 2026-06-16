@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppWindow } from "lucide-react";
 import { listApps } from "@/db/repo";
 import { PageHeader, EmptyState } from "@/components/ui";
+import RefreshAllButton from "@/components/RefreshAllButton";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,11 @@ export default async function AppsPage() {
 
   return (
     <>
-      <PageHeader title="应用矿源" subtitle="正在追踪的应用，以及各自贡献的评论样本量。" />
+      <PageHeader
+        title="应用矿源"
+        subtitle="正在追踪的应用，以及各自贡献的评论样本量。"
+        action={apps.length > 0 ? <RefreshAllButton /> : undefined}
+      />
 
       {apps.length === 0 ? (
         <EmptyState
@@ -32,7 +37,7 @@ export default async function AppsPage() {
           {apps.map((app) => (
             <Link
               key={app.id}
-              href={`/reviews`}
+              href={`/apps/${app.id}`}
               className="card flex items-center gap-3 p-4 transition-colors hover:border-ore-500/30"
             >
               {app.iconUrl ? (

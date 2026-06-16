@@ -5,6 +5,7 @@ import {
   insertCluster,
   insertOpportunity,
   clearGeneratedArtifacts,
+  snapshotOpportunityStatuses,
   upsertTrend,
 } from "@/db/repo";
 import { clusterReviews } from "./clustering";
@@ -30,7 +31,8 @@ export async function runPipeline(): Promise<{
       return { runId, clusters: 0, opportunities: 0, log };
     }
 
-    // Fresh artifacts each run; raw reviews/apps are preserved.
+    // Preserve human-set statuses across regeneration, then rebuild artifacts.
+    const priorStatuses = await snapshotOpportunityStatuses();
     await clearGeneratedArtifacts();
 
     const clusters = clusterReviews(reviews);
@@ -63,7 +65,8 @@ export async function runPipeline(): Promise<{
         trendMomentum: signal.momentum,
         corpusSize: reviews.length,
       });
-      await insertOpportunity(runId, clusterId, card);
+      const carried = priorStatuses[card.title] ?? "new";
+      await insertOpportunity(runId, clusterId, card, carried);
       oppCount++;
     }
 

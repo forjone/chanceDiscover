@@ -13,6 +13,8 @@ import {
 import { getOpportunity } from "@/db/repo";
 import { PageHeader, ScoreRing, ScoreBars, TierBadge, Stars } from "@/components/ui";
 import StatusControl from "@/components/StatusControl";
+import ExportButton from "@/components/ExportButton";
+import OpportunityReviews from "@/components/OpportunityReviews";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +48,11 @@ export default async function OpportunityDetail({ params }: { params: { id: stri
         <ArrowLeft className="h-4 w-4" /> 返回机会列表
       </Link>
 
-      <PageHeader title={o.title} subtitle={`机会 #${o.id} · 证据 ${o.frequency} 条`} />
+      <PageHeader
+        title={o.title}
+        subtitle={`机会 #${o.id} · 证据 ${o.frequency} 条`}
+        action={<ExportButton opportunity={o} />}
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Score panel */}
@@ -112,6 +118,8 @@ export default async function OpportunityDetail({ params }: { params: { id: stri
           </div>
         )}
       </div>
+
+      <OpportunityReviews id={o.id} />
     </>
   );
 }
