@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Database, Youtube, Sparkles, Globe, ShieldCheck, Loader2, Play, Trash2, AlertTriangle,
+  Database, Youtube, Sparkles, Globe, ShieldCheck, Loader2, Play, Trash2, AlertTriangle, Lock, LogOut,
 } from "lucide-react";
 import { SCORE_LABELS, SCORE_WEIGHTS } from "@/lib/types";
 
@@ -13,6 +13,7 @@ interface Config {
   anthropicKey: boolean;
   cronSecret: boolean;
   appstoreCountry: string;
+  authEnabled: boolean;
 }
 interface Monitoring {
   enabled: boolean;
@@ -95,7 +96,14 @@ export default function SettingsClient() {
     { icon: <Youtube className="h-4 w-4" />, label: "YouTube 趋势 Key", value: config.youtubeKey ? "已配置" : "未配置（用评论量兜底）", on: config.youtubeKey },
     { icon: <Sparkles className="h-4 w-4" />, label: "Claude 文案增强", value: config.anthropicKey ? "已配置" : "未配置（用启发式文案）", on: config.anthropicKey },
     { icon: <ShieldCheck className="h-4 w-4" />, label: "Cron 密钥", value: config.cronSecret ? "已配置" : "未配置（接口开放）", on: config.cronSecret },
+    { icon: <Lock className="h-4 w-4" />, label: "访问密码", value: config.authEnabled ? "已启用" : "未启用（公开访问）", on: config.authEnabled },
   ];
+
+  async function logout() {
+    await fetch("/api/auth", { method: "DELETE" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <div className="space-y-8">
@@ -116,9 +124,16 @@ export default function SettingsClient() {
             </div>
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-rock-500">
-          密钥通过环境变量配置（见 <code className="text-rock-400">.env.example</code>），不在界面中存储。
-        </p>
+        <div className="mt-2 flex items-center justify-between">
+          <p className="text-[11px] text-rock-500">
+            密钥通过环境变量配置（见 <code className="text-rock-400">.env.example</code>），不在界面中存储。
+          </p>
+          {config.authEnabled && (
+            <button onClick={logout} className="btn-ghost px-3 py-1.5 text-xs">
+              <LogOut className="h-3.5 w-3.5" /> 退出登录
+            </button>
+          )}
+        </div>
       </section>
 
       {/* Scoring weights */}

@@ -74,6 +74,7 @@ docker run -p 3000:3000 -v $(pwd)/data:/app/data opportunity-miner
 
 - **Vercel** — `vercel.json` 已配置每日 Cron 命中 `/api/cron`；serverless 环境请用 Turso（`DATABASE_URL=libsql://…` + `DATABASE_AUTH_TOKEN`），并设置 `CRON_SECRET`（Vercel 会自动带上 `Authorization: Bearer`）。
 - **定时监控** — 任意调度器（Vercel Cron / GitHub Actions / crontab）定期 `curl` 命中 `/api/cron`；配置 `CRON_SECRET` 后需带 `?secret=…` 或 `Authorization: Bearer …`。在「设置」页可开关监控并查看接口地址。
+- **访问保护** — 设置 `APP_PASSWORD` 后，整站经 Edge 中间件加密码门（`/login` 登录、Cookie 鉴权），`/api/cron` 用自身密钥放行。缺省时完全开放，不影响本地与演示。
 
 ## 目录结构
 
@@ -111,6 +112,7 @@ src/
 | `ANTHROPIC_API_KEY` | 可选；配置后用 Claude 增强机会卡片文案，缺省时回退到启发式 |
 | `APPSTORE_COUNTRY` | App Store RSS 默认地区，默认 `us` |
 | `CRON_SECRET` | 可选；配置后 `/api/cron` 需鉴权（`?secret=` 或 `Bearer`），缺省时接口开放（仅本地） |
+| `APP_PASSWORD` | 可选；配置后整站需输入此密码访问（自托管部署用），缺省时完全开放 |
 
 ## 已知限制 / 后续
 

@@ -24,6 +24,7 @@ function configStatus() {
     anthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
     cronSecret: Boolean(process.env.CRON_SECRET),
     appstoreCountry: process.env.APPSTORE_COUNTRY || "us",
+    authEnabled: Boolean(process.env.APP_PASSWORD),
   };
 }
 
