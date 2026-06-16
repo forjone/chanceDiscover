@@ -103,6 +103,22 @@ export const SCHEMA_STATEMENTS: string[] = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
 
+  // Append-only per-run cluster snapshots — powers pain-point evolution tracking
+  // across runs (pain_clusters is rebuilt each run; this is never cleared).
+  `CREATE TABLE IF NOT EXISTS cluster_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER REFERENCES runs(id) ON DELETE CASCADE,
+    signature TEXT NOT NULL,
+    label TEXT NOT NULL,
+    keywords TEXT NOT NULL DEFAULT '[]',
+    review_count INTEGER NOT NULL DEFAULT 0,
+    avg_rating REAL NOT NULL DEFAULT 0,
+    score_total REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_snap_sig ON cluster_snapshots(signature)`,
+
   // Generated downstream artifacts (PRD / landing copy / tasks / research).
   // Keyed by opportunity *title* so they survive re-mining (ids are regenerated).
   `CREATE TABLE IF NOT EXISTS artifacts (

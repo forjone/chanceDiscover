@@ -4,6 +4,7 @@ import {
   finishRun,
   insertCluster,
   insertOpportunity,
+  insertSnapshot,
   clearGeneratedArtifacts,
   snapshotOpportunityMeta,
   upsertTrend,
@@ -82,6 +83,17 @@ export async function runPipeline(): Promise<{
 
       const meta = priorMeta[card.title];
       await insertOpportunity(runId, clusterId, card, meta?.status ?? "new", meta?.notes ?? "");
+
+      // Append-only snapshot for cross-run pain evolution.
+      await insertSnapshot({
+        runId,
+        signature: cluster.signature,
+        label: cluster.label,
+        keywords: cluster.keywords,
+        reviewCount: cluster.reviewCount,
+        avgRating: cluster.avgRating,
+        scoreTotal: card.score.total,
+      });
       oppCount++;
     }
 

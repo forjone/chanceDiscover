@@ -11,94 +11,155 @@ export interface ClusterResult {
   avgRating: number;
   avgSentiment: number;
   payIntentCount: number;
+  signature: string; // stable id for cross-run evolution tracking
 }
 
-// Greedy keyword-overlap clustering over pain-leaning reviews. Deterministic and
-// offline. Each review joins the existing cluster it overlaps most with; otherwise
-// it seeds a new cluster. A document is represented by its keyword token set.
+// Vector-space (TF-IDF + cosine) clustering over pain-leaning reviews, followed
+// by a merge pass that collapses near-duplicate clusters. Deterministic and
+// offline; an embedding provider can later replace `vectorize` without changing
+// the rest of the pipeline.
 
 const MIN_CLUSTER_SIZE = 2;
-const OVERLAP_THRESHOLD = 0.18; // Jaccard-ish similarity needed to join a cluster
+const JOIN_THRESHOLD = 0.12; // single-linkage cosine needed to join a cluster
+const MERGE_THRESHOLD = 0.45; // centroid cosine above which two clusters are deduped
 
-function topTokens(text: string, n = 6): Set<string> {
-  const counts = new Map<string, number>();
-  for (const t of tokenize(text)) counts.set(t, (counts.get(t) || 0) + 1);
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  return new Set(sorted.slice(0, n).map(([t]) => t));
+type Vec = Map<string, number>;
+
+function cosine(a: Vec, b: Vec): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  const [small, large] = a.size < b.size ? [a, b] : [b, a];
+  let dot = 0;
+  for (const [t, w] of small) {
+    const o = large.get(t);
+    if (o) dot += w * o;
+  }
+  if (dot === 0) return 0;
+  let na = 0;
+  for (const w of a.values()) na += w * w;
+  let nb = 0;
+  for (const w of b.values()) nb += w * w;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
 }
 
-function similarity(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0;
-  let inter = 0;
-  for (const t of a) if (b.has(t)) inter++;
-  return inter / Math.min(a.size, b.size);
+function addInto(target: Vec, src: Vec) {
+  for (const [t, w] of src) target.set(t, (target.get(t) || 0) + w);
+}
+
+// Build TF-IDF vectors for a corpus of documents.
+function vectorize(docs: string[][]): Vec[] {
+  const df = new Map<string, number>();
+  for (const toks of docs) {
+    for (const t of new Set(toks)) df.set(t, (df.get(t) || 0) + 1);
+  }
+  const N = Math.max(1, docs.length);
+  return docs.map((toks) => {
+    const tf = new Map<string, number>();
+    for (const t of toks) tf.set(t, (tf.get(t) || 0) + 1);
+    const v: Vec = new Map();
+    for (const [t, c] of tf) {
+      const idf = Math.log(1 + N / (df.get(t) || 1));
+      v.set(t, c * idf);
+    }
+    return v;
+  });
+}
+
+interface Bucket {
+  vectors: Vec[]; // member vectors (single-linkage)
+  centroidSum: Vec; // running sum, for the merge pass
+  items: Review[];
+}
+
+function centroid(b: Bucket): Vec {
+  const c: Vec = new Map();
+  const n = b.items.length;
+  for (const [t, w] of b.centroidSum) c.set(t, w / n);
+  return c;
 }
 
 export function clusterReviews(reviews: Review[]): ClusterResult[] {
-  // Focus on pain: low ratings or negative sentiment carry the signal.
   const painful = reviews.filter((r) => r.rating <= 3 || r.sentiment < 0);
   const pool = painful.length >= MIN_CLUSTER_SIZE ? painful : reviews;
+  if (pool.length === 0) return [];
 
-  type Bucket = { centroid: Set<string>; items: Review[]; tokenSets: Set<string>[] };
+  const docs = pool.map((r) => tokenize(`${r.title || ""} ${r.content}`));
+  const vectors = vectorize(docs);
+
+  // Online single-linkage: a review joins the cluster with the most similar
+  // member (not the centroid, which blobs on short bilingual text).
   const buckets: Bucket[] = [];
-
-  for (const r of pool) {
-    const tokens = topTokens(`${r.title || ""} ${r.content}`);
-    if (tokens.size === 0) continue;
+  for (let i = 0; i < pool.length; i++) {
+    const vec = vectors[i];
+    if (vec.size === 0) continue;
     let best: Bucket | null = null;
-    let bestSim = OVERLAP_THRESHOLD;
+    let bestSim = JOIN_THRESHOLD;
     for (const bucket of buckets) {
-      const sim = similarity(tokens, bucket.centroid);
-      if (sim > bestSim) {
+      let m = 0;
+      for (const mv of bucket.vectors) {
+        const sim = cosine(vec, mv);
+        if (sim > m) m = sim;
+      }
+      if (m > bestSim) {
         best = bucket;
-        bestSim = sim;
+        bestSim = m;
       }
     }
     if (best) {
-      best.items.push(r);
-      best.tokenSets.push(tokens);
-      // Recompute centroid as tokens shared by >=2 members (keeps it tight).
-      const freq = new Map<string, number>();
-      for (const ts of best.tokenSets) for (const t of ts) freq.set(t, (freq.get(t) || 0) + 1);
-      best.centroid = new Set(
-        [...freq.entries()].filter(([, c]) => c >= 2).map(([t]) => t)
-      );
-      if (best.centroid.size === 0) best.centroid = tokens;
+      best.vectors.push(vec);
+      addInto(best.centroidSum, vec);
+      best.items.push(pool[i]);
     } else {
-      buckets.push({ centroid: new Set(tokens), items: [r], tokenSets: [tokens] });
+      buckets.push({ vectors: [vec], centroidSum: new Map(vec), items: [pool[i]] });
+    }
+  }
+
+  // Merge pass: collapse near-duplicate clusters (opportunity dedup at source).
+  for (let i = 0; i < buckets.length; i++) {
+    for (let j = i + 1; j < buckets.length; j++) {
+      if (cosine(centroid(buckets[i]), centroid(buckets[j])) > MERGE_THRESHOLD) {
+        buckets[i].vectors.push(...buckets[j].vectors);
+        addInto(buckets[i].centroidSum, buckets[j].centroidSum);
+        buckets[i].items.push(...buckets[j].items);
+        buckets.splice(j, 1);
+        j--;
+      }
     }
   }
 
   const clusters: ClusterResult[] = [];
   for (const bucket of buckets) {
     if (bucket.items.length < MIN_CLUSTER_SIZE) continue;
-    const docs = bucket.items.map((r) => `${r.title || ""} ${r.content}`);
-    const keywords = extractKeywords(docs, 6).map((k) => k.term);
+    const memberDocs = bucket.items.map((r) => `${r.title || ""} ${r.content}`);
+    const keywords = extractKeywords(memberDocs, 6).map((k) => k.term);
     const reviewCount = bucket.items.length;
     const avgRating = bucket.items.reduce((s, r) => s + r.rating, 0) / reviewCount;
     const avgSentiment = bucket.items.reduce((s, r) => s + r.sentiment, 0) / reviewCount;
     const payIntentCount = bucket.items.filter((r) => r.payIntent).length;
     const label = keywords.slice(0, 3).join(" · ") || "未命名痛点";
-    const summary = buildSummary(keywords, reviewCount, avgRating);
     clusters.push({
       label,
       keywords,
-      summary,
+      summary: buildSummary(keywords, reviewCount, avgRating),
       reviewIds: bucket.items.map((r) => r.id),
       reviews: bucket.items,
       reviewCount,
       avgRating: round(avgRating),
       avgSentiment: round(avgSentiment),
       payIntentCount,
+      signature: signatureOf(keywords),
     });
   }
 
-  // Rank by signal: volume × negativity.
   clusters.sort(
-    (a, b) =>
-      b.reviewCount * (5 - b.avgRating) - a.reviewCount * (5 - a.avgRating)
+    (a, b) => b.reviewCount * (5 - b.avgRating) - a.reviewCount * (5 - a.avgRating)
   );
   return clusters;
+}
+
+// Stable signature from the leading keywords — lets us track the same pain
+// theme across runs even as exact membership shifts.
+export function signatureOf(keywords: string[]): string {
+  return [...keywords.slice(0, 3)].sort().join("|") || "未命名";
 }
 
 function buildSummary(keywords: string[], count: number, avgRating: number): string {

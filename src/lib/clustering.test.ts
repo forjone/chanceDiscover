@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clusterReviews } from "./clustering";
+import { clusterReviews, signatureOf } from "./clustering";
 import { sentiment, detectPayIntent } from "./nlp";
 import type { Review } from "./types";
 
@@ -46,5 +46,18 @@ describe("clusterReviews", () => {
     const [c] = clusterReviews(reviews);
     expect(c.avgRating).toBe(1);
     expect(c.reviewCount).toBe(2);
+  });
+
+  it("assigns a stable, order-independent signature", () => {
+    expect(signatureOf(["sync", "data", "loss"])).toBe(signatureOf(["loss", "sync", "data"]));
+  });
+
+  it("exposes a signature on each cluster for evolution tracking", () => {
+    const reviews = [
+      review("crash on launch every time, crashes", 1, "crash"),
+      review("app crashes constantly, crash crash", 1, "crash"),
+    ];
+    const [c] = clusterReviews(reviews);
+    expect(c.signature).toBeTruthy();
   });
 });

@@ -472,6 +472,62 @@ export async function searchReviews(q: string, limit = 30): Promise<Review[]> {
   return res.rows.map(toReview);
 }
 
+// ── Cluster snapshots / pain evolution ───────────────────────
+export async function insertSnapshot(s: {
+  runId: number;
+  signature: string;
+  label: string;
+  keywords: string[];
+  reviewCount: number;
+  avgRating: number;
+  scoreTotal: number;
+}): Promise<void> {
+  await query(
+    `INSERT INTO cluster_snapshots (run_id, signature, label, keywords, review_count, avg_rating, score_total)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [s.runId, s.signature, s.label, JSON.stringify(s.keywords), s.reviewCount, s.avgRating, s.scoreTotal]
+  );
+}
+
+export interface EvolutionSeries {
+  signature: string;
+  label: string;
+  points: { runId: number; date: string; reviewCount: number; score: number }[];
+  delta: number; // latest reviewCount - first reviewCount
+  latestScore: number;
+}
+
+// Group snapshots by signature into time series across runs.
+export async function listEvolution(limit = 20): Promise<EvolutionSeries[]> {
+  const res = await query(
+    `SELECT run_id, signature, label, review_count, avg_rating, score_total, created_at
+     FROM cluster_snapshots ORDER BY created_at ASC`
+  );
+  const map = new Map<string, EvolutionSeries>();
+  for (const r of res.rows) {
+    const sig = String(r.signature);
+    if (!map.has(sig)) {
+      map.set(sig, { signature: sig, label: String(r.label), points: [], delta: 0, latestScore: 0 });
+    }
+    const s = map.get(sig)!;
+    s.label = String(r.label);
+    s.points.push({
+      runId: Number(r.run_id),
+      date: String(r.created_at),
+      reviewCount: Number(r.review_count),
+      score: Number(r.score_total),
+    });
+  }
+  const all = [...map.values()].filter((s) => s.points.length >= 1);
+  for (const s of all) {
+    s.delta = s.points[s.points.length - 1].reviewCount - s.points[0].reviewCount;
+    s.latestScore = s.points[s.points.length - 1].score;
+  }
+  // Most runs of history first, then by latest score.
+  all.sort((a, b) => b.points.length - a.points.length || b.latestScore - a.latestScore);
+  return all.slice(0, limit);
+}
+
 // ── Artifacts (downstream generation) ────────────────────────
 import type { Artifact, ArtifactType } from "@/lib/types";
 
@@ -514,6 +570,7 @@ export async function clearAllData(): Promise<void> {
   await query(`DELETE FROM apps`);
   await query(`DELETE FROM runs`);
   await query(`DELETE FROM artifacts`);
+  await query(`DELETE FROM cluster_snapshots`);
 }
 
 // Score distribution buckets for the dashboard.
