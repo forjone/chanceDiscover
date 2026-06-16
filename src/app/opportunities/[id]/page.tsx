@@ -16,6 +16,7 @@ import StatusControl from "@/components/StatusControl";
 import ExportButton from "@/components/ExportButton";
 import OpportunityReviews from "@/components/OpportunityReviews";
 import NotesEditor from "@/components/NotesEditor";
+import ArtifactsPanel from "@/components/ArtifactsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,8 @@ export default async function OpportunityDetail({ params }: { params: { id: stri
           </div>
         )}
       </div>
+
+      <ArtifactsPanel id={o.id} />
 
       <OpportunityReviews id={o.id} />
     </>

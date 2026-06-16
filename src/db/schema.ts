@@ -102,6 +102,17 @@ export const SCHEMA_STATEMENTS: string[] = [
     value TEXT NOT NULL DEFAULT '{}',
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+
+  // Generated downstream artifacts (PRD / landing copy / tasks / research).
+  // Keyed by opportunity *title* so they survive re-mining (ids are regenerated).
+  `CREATE TABLE IF NOT EXISTS artifacts (
+    opp_title TEXT NOT NULL,
+    type TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'template',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (opp_title, type)
+  )`,
 ];
 
 // Idempotent migrations for columns added after the initial schema. Each runs

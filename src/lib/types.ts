@@ -95,8 +95,7 @@ export interface Trend {
   updatedAt: string;
 }
 
-export type RunType = "manual" | "collect" | "pipeline";
-export type RunStatus = "running" | "completed" | "failed";
+export type RunType = "manual" | "collect" | "pipeline";export type RunStatus = "running" | "completed" | "failed";
 
 export interface Run {
   id: number;
@@ -107,6 +106,24 @@ export interface Run {
   log: string;
   startedAt: string;
   finishedAt: string | null;
+}
+
+// Downstream generated artifacts.
+export type ArtifactType = "prd" | "landing" | "tasks" | "research";
+
+export const ARTIFACT_LABELS: Record<ArtifactType, string> = {
+  prd: "PRD 需求文档",
+  landing: "落地页文案",
+  tasks: "MVP 任务清单",
+  research: "联网反向尽调",
+};
+
+export interface Artifact {
+  oppTitle: string;
+  type: ArtifactType;
+  content: string;
+  source: "llm" | "template";
+  createdAt: string;
 }
 
 // Scoring weights (sum to 1). Each dimension is scored 0-25 raw.

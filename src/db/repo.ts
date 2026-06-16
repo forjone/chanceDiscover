@@ -472,6 +472,38 @@ export async function searchReviews(q: string, limit = 30): Promise<Review[]> {
   return res.rows.map(toReview);
 }
 
+// ── Artifacts (downstream generation) ────────────────────────
+import type { Artifact, ArtifactType } from "@/lib/types";
+
+export async function listArtifacts(oppTitle: string): Promise<Artifact[]> {
+  const res = await query(
+    `SELECT * FROM artifacts WHERE opp_title = ? ORDER BY created_at DESC`,
+    [oppTitle]
+  );
+  return res.rows.map((r) => ({
+    oppTitle: String(r.opp_title),
+    type: String(r.type) as ArtifactType,
+    content: String(r.content),
+    source: String(r.source) as Artifact["source"],
+    createdAt: String(r.created_at),
+  }));
+}
+
+export async function upsertArtifact(a: {
+  oppTitle: string;
+  type: ArtifactType;
+  content: string;
+  source: Artifact["source"];
+}): Promise<void> {
+  await query(
+    `INSERT INTO artifacts (opp_title, type, content, source, created_at)
+     VALUES (?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(opp_title, type) DO UPDATE SET
+       content = excluded.content, source = excluded.source, created_at = datetime('now')`,
+    [a.oppTitle, a.type, a.content, a.source]
+  );
+}
+
 // ── Data management ──────────────────────────────────────────
 export async function clearAllData(): Promise<void> {
   await query(`DELETE FROM opportunities`);
@@ -481,6 +513,7 @@ export async function clearAllData(): Promise<void> {
   await query(`DELETE FROM reviews`);
   await query(`DELETE FROM apps`);
   await query(`DELETE FROM runs`);
+  await query(`DELETE FROM artifacts`);
 }
 
 // Score distribution buckets for the dashboard.
