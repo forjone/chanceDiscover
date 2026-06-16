@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { listOpportunities } from "@/db/repo";
+import { listOpportunities, type OpportunitySort } from "@/db/repo";
 import { PageHeader, ScoreRing, ScoreBars, TierBadge, EmptyState } from "@/components/ui";
 import RunPipelineButton from "@/components/RunPipelineButton";
 import type { OpportunityStatus } from "@/lib/types";
+
+const SORTS: { value: OpportunitySort; label: string }[] = [
+  { value: "total", label: "综合分" },
+  { value: "demand", label: "需求强度" },
+  { value: "payment", label: "付费意愿" },
+  { value: "gap", label: "市场空白" },
+  { value: "timing", label: "时机趋势" },
+  { value: "frequency", label: "证据量" },
+  { value: "recent", label: "最新" },
+];
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +28,21 @@ const FILTERS: { value: string; label: string }[] = [
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: { status?: string };
+  searchParams: { status?: string; sort?: string };
 }) {
   const status = (searchParams.status || "") as OpportunityStatus | "";
-  const opportunities = await listOpportunities({ status: status || undefined, limit: 200 });
+  const sort = (searchParams.sort || "total") as OpportunitySort;
+  const opportunities = await listOpportunities({ status: status || undefined, sort, limit: 200 });
+
+  const qs = (next: { status?: string; sort?: string }) => {
+    const s = next.status ?? status;
+    const so = next.sort ?? sort;
+    const p = new URLSearchParams();
+    if (s) p.set("status", s);
+    if (so && so !== "total") p.set("sort", so);
+    const str = p.toString();
+    return str ? `/opportunities?${str}` : "/opportunities";
+  };
 
   return (
     <>
@@ -31,16 +52,32 @@ export default async function OpportunitiesPage({
         action={<RunPipelineButton label="重新挖掘" />}
       />
 
-      <div className="mb-5 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2">
         {FILTERS.map((f) => {
           const active = (status || "") === f.value;
           return (
             <Link
               key={f.value}
-              href={f.value ? `/opportunities?status=${f.value}` : "/opportunities"}
+              href={qs({ status: f.value })}
               className={`chip ${active ? "border-ore-500/40 bg-ore-500/10 text-ore-300" : ""}`}
             >
               {f.label}
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="text-xs text-rock-500">排序</span>
+        {SORTS.map((s) => {
+          const active = sort === s.value;
+          return (
+            <Link
+              key={s.value}
+              href={qs({ sort: s.value })}
+              className={`chip ${active ? "border-sky-500/40 bg-sky-500/10 text-sky-300" : ""}`}
+            >
+              {s.label}
             </Link>
           );
         })}

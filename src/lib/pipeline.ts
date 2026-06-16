@@ -10,6 +10,7 @@ import {
 } from "@/db/repo";
 import { clusterReviews } from "./clustering";
 import { generateCard } from "./cards";
+import { enrichCard, llmAvailable } from "./llm";
 import { getTrendSignal } from "./collectors/youtube";
 
 // Runs the full mining pipeline: reviews -> pain clusters -> trend signals ->
@@ -38,7 +39,11 @@ export async function runPipeline(): Promise<{
     const clusters = clusterReviews(reviews);
     log.push(`聚类出 ${clusters.length} 个痛点簇`);
 
+    const useLLM = llmAvailable();
+    if (useLLM) log.push("已启用 Claude 文案增强");
+
     let oppCount = 0;
+    let enrichedCount = 0;
     for (const cluster of clusters) {
       const clusterId = await insertCluster(runId, {
         label: cluster.label,
@@ -65,16 +70,31 @@ export async function runPipeline(): Promise<{
         trendMomentum: signal.momentum,
         corpusSize: reviews.length,
       });
+
+      // Optionally enrich the narrative with Claude (scores stay heuristic).
+      if (useLLM) {
+        const narrative = await enrichCard(cluster);
+        if (narrative) {
+          Object.assign(card, narrative);
+          enrichedCount++;
+        }
+      }
+
       const carried = priorStatuses[card.title] ?? "new";
       await insertOpportunity(runId, clusterId, card, carried);
       oppCount++;
     }
 
-    log.push(`生成 ${oppCount} 张机会卡片`);
+    log.push(`生成 ${oppCount} 张机会卡片${useLLM ? `（其中 ${enrichedCount} 张经 Claude 增强）` : ""}`);
     await finishRun(
       runId,
       "completed",
-      { clusters: clusters.length, opportunities: oppCount, reviews: reviews.length },
+      {
+        clusters: clusters.length,
+        opportunities: oppCount,
+        reviews: reviews.length,
+        ...(useLLM ? { enriched: enrichedCount } : {}),
+      },
       log.join("\n")
     );
     return { runId, clusters: clusters.length, opportunities: oppCount, log };

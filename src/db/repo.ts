@@ -349,14 +349,27 @@ export async function getClusterReviews(clusterId: number): Promise<Review[]> {
   return res.rows.map(toReview);
 }
 
+export type OpportunitySort = "total" | "demand" | "payment" | "gap" | "timing" | "frequency" | "recent";
+
+const SORT_COLUMN: Record<OpportunitySort, string> = {
+  total: "score_total DESC",
+  demand: "score_demand DESC",
+  payment: "score_payment DESC",
+  gap: "score_gap DESC",
+  timing: "score_timing DESC",
+  frequency: "frequency DESC",
+  recent: "created_at DESC",
+};
+
 export async function listOpportunities(
-  opts: { status?: OpportunityStatus; limit?: number } = {}
+  opts: { status?: OpportunityStatus; sort?: OpportunitySort; limit?: number } = {}
 ): Promise<Opportunity[]> {
   const limit = opts.limit ?? 100;
   const where = opts.status ? `WHERE status = ?` : "";
   const args = opts.status ? [opts.status, limit] : [limit];
+  const orderBy = SORT_COLUMN[opts.sort || "total"] || SORT_COLUMN.total;
   const res = await query(
-    `SELECT * FROM opportunities ${where} ORDER BY score_total DESC, created_at DESC LIMIT ?`,
+    `SELECT * FROM opportunities ${where} ORDER BY ${orderBy}, created_at DESC LIMIT ?`,
     args
   );
   return res.rows.map(toOpportunity);

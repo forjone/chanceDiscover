@@ -38,7 +38,8 @@
 - **Next.js 14**（App Router）+ TypeScript + Tailwind CSS
 - **libSQL / Turso**（本地文件默认，可无缝切换远程 Turso）
 - 数据模型：`apps`、`reviews`、`pain_clusters`、`opportunities`、`trends`、`runs`
-- 聚类 / 情感 / 付费意愿 / 关键词抽取均为**离线确定性启发式**（中英双语词典），无需任何 LLM Key 即可跑通；`src/lib/*` 中的 `narrate*` 与聚类函数预留了接 LLM 的位置
+- 聚类 / 情感 / 付费意愿 / 关键词抽取均为**离线确定性启发式**（中英双语词典），无需任何 LLM Key 即可跑通
+- **可选 LLM 文案增强**：配置 `ANTHROPIC_API_KEY` 后，挖掘时用 **Claude（`claude-opus-4-8`，自适应思考 + 结构化输出）** 把机会卡片文案写得更扎实；**评分与时机始终基于真实数据，不受 LLM 影响**（规范要求时机用真实热度，拒绝 AI 臆测）。缺省时自动回退到启发式文案。
 
 ## 快速开始
 
@@ -80,11 +81,12 @@ src/
 | `DATABASE_URL` | 默认 `file:./data/miner.db`；远程用 `libsql://<db>.turso.io` |
 | `DATABASE_AUTH_TOKEN` | 仅远程 Turso 需要 |
 | `YOUTUBE_API_KEY` | 可选；用于 Phase 2 真实趋势信号，缺省时用评论量轨迹兜底 |
+| `ANTHROPIC_API_KEY` | 可选；配置后用 Claude 增强机会卡片文案，缺省时回退到启发式 |
 | `APPSTORE_COUNTRY` | App Store RSS 默认地区，默认 `us` |
 
 ## 已知限制 / 后续
 
-- 「重新挖掘」会重建痛点簇与机会卡片，当前会清空机会的人工状态标记（新发现/观察中/在做了/已归档）；后续可按簇标签做状态延续。
-- 聚类与文案为启发式；接入 LLM 可显著提升痛点命名与卡片叙述质量（接口已预留）。
+- 「重新挖掘」会重建痛点簇与机会卡片，但**会按机会标题延续人工状态标记**（新发现/观察中/在做了/已归档），不会清空。
+- 未配置 `ANTHROPIC_API_KEY` 时，卡片文案为离线启发式；配置后由 Claude 增强叙述质量（评分不变）。
 - Google Play 抓取依赖可选包 `google-play-scraper`，受网络 / 风控影响可能为空，此时建议使用 App Store 或手动录入。
 - **采集功能需要外网出口**：App Store RSS / iTunes Search 需可访问 `itunes.apple.com`。若运行环境的网络策略限制出口（例如返回 403），采集会优雅降级为空并给出提示，请改用手动录入，或在开放出口的环境/本机运行。

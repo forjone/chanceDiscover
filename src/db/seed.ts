@@ -5,9 +5,10 @@ import { ingestReviews } from "@/lib/ingest";
 import { runPipeline } from "@/lib/pipeline";
 import type { RawReview } from "@/lib/collectors/appstore";
 
+// Stable externalId (title + rating) keeps re-seeding idempotent — no duplicate rows.
 function mk(rating: number, title: string, content: string, daysAgo = 0): RawReview {
   return {
-    externalId: `seed-${title}-${Math.random().toString(36).slice(2, 8)}`,
+    externalId: `seed-${rating}-${title}`,
     author: null,
     title,
     content,
