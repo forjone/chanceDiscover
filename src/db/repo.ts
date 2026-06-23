@@ -162,6 +162,35 @@ export async function deleteApp(id: number): Promise<void> {
   await query(`DELETE FROM apps WHERE id = ?`, [id]);
 }
 
+// Incremental-collection watermark: newest review date ingested for an app.
+export async function getWatermark(appId: number): Promise<string | null> {
+  const res = await query(`SELECT watermark FROM apps WHERE id = ?`, [appId]);
+  const w = res.rows[0]?.watermark;
+  return w ? String(w) : null;
+}
+
+export async function advanceWatermark(appId: number, date: string | null): Promise<void> {
+  if (!date) return;
+  // Only move the watermark forward.
+  await query(
+    `UPDATE apps SET watermark = ? WHERE id = ? AND (watermark IS NULL OR watermark < ?)`,
+    [date, appId, date]
+  );
+}
+
+export async function getWatermarkByStore(
+  platform: Platform,
+  storeId: string,
+  country: string
+): Promise<string | null> {
+  const res = await query(
+    `SELECT watermark FROM apps WHERE platform = ? AND store_id = ? AND country = ?`,
+    [platform, storeId, country]
+  );
+  const w = res.rows[0]?.watermark;
+  return w ? String(w) : null;
+}
+
 // ── Reviews ──────────────────────────────────────────────────
 export async function insertReview(input: {
   appId: number;
@@ -192,7 +221,9 @@ export async function insertReview(input: {
       input.payIntent,
     ]
   );
-  return Number(res.lastInsertRowid ?? 0);
+  // rowsAffected is reliable across ON CONFLICT DO NOTHING (0 when deduped);
+  // lastInsertRowid is not.
+  return Number(res.rowsAffected ?? 0);
 }
 
 export async function listReviews(opts: { appId?: number; limit?: number } = {}): Promise<Review[]> {

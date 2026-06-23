@@ -1,5 +1,6 @@
-import { upsertApp, insertReview } from "@/db/repo";
+import { upsertApp, insertReview, advanceWatermark } from "@/db/repo";
 import { sentiment, detectPayIntent } from "./nlp";
+import { newestDate } from "./csv";
 import type { Platform } from "./types";
 import type { RawReview } from "./collectors/appstore";
 
@@ -43,6 +44,8 @@ export async function ingestReviews(input: {
     });
     if (id > 0) inserted++;
   }
+  // Advance the incremental-collection watermark to the newest review seen.
+  await advanceWatermark(app.id, newestDate(input.reviews));
   return { appId: app.id, inserted, total: input.reviews.length };
 }
 

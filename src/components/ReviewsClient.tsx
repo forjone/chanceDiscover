@@ -2,11 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Search, Download, ClipboardPaste, Sparkles } from "lucide-react";
+import { Loader2, Search, Download, ClipboardPaste, Sparkles, FileSpreadsheet, Upload } from "lucide-react";
 import { Stars } from "@/components/ui";
 import type { Review } from "@/lib/types";
 
-type Tab = "manual" | "collect";
+type Tab = "manual" | "collect" | "csv";
 
 interface StoreResult {
   storeId: string;
@@ -41,6 +41,11 @@ export default function ReviewsClient() {
 
   // recent reviews
   const [reviews, setReviews] = useState<Review[]>([]);
+
+  // csv import
+  const [csvName, setCsvName] = useState("");
+  const [csvText, setCsvText] = useState("");
+  const [importing, setImporting] = useState(false);
 
   const loadReviews = useCallback(async () => {
     const res = await fetch("/api/reviews");
@@ -132,6 +137,41 @@ export default function ReviewsClient() {
     }
   }
 
+  async function submitCsv() {
+    if (!csvText.trim()) {
+      setMsg("请先粘贴或上传 CSV 内容");
+      return;
+    }
+    setImporting(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/import/csv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appName: csvName || "CSV 导入", text: csvText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "导入失败");
+      setMsg(`✓ 解析 ${data.parsed} 条，新增 ${data.inserted} 条`);
+      setCsvText("");
+      await loadReviews();
+      router.refresh();
+    } catch (e) {
+      setMsg(`✗ ${(e as Error).message}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function onCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!csvName) setCsvName(file.name.replace(/\.(csv|tsv|txt)$/i, ""));
+    const reader = new FileReader();
+    reader.onload = () => setCsvText(String(reader.result || ""));
+    reader.readAsText(file);
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Input panel */}
@@ -153,9 +193,17 @@ export default function ReviewsClient() {
           >
             <Download className="h-4 w-4" /> 商店采集
           </button>
+          <button
+            onClick={() => setTab("csv")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ${
+              tab === "csv" ? "bg-ore-500 text-rock-950" : "text-rock-400 hover:text-rock-200"
+            }`}
+          >
+            <FileSpreadsheet className="h-4 w-4" /> CSV 导入
+          </button>
         </div>
 
-        {tab === "manual" ? (
+        {tab === "manual" && (
           <div className="space-y-3">
             <input
               className="input"
@@ -182,7 +230,9 @@ export default function ReviewsClient() {
               </button>
             </div>
           </div>
-        ) : (
+        )}
+
+        {tab === "collect" && (
           <div className="space-y-3">
             <div className="flex gap-2">
               <select
@@ -235,6 +285,39 @@ export default function ReviewsClient() {
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {tab === "csv" && (
+          <div className="space-y-3">
+            <input
+              className="input"
+              placeholder="应用 / 来源名称（可选）"
+              value={csvName}
+              onChange={(e) => setCsvName(e.target.value)}
+            />
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-rock-700 px-3 py-3 text-xs text-rock-400 hover:border-ore-500/40">
+              <Upload className="h-4 w-4" /> 选择 .csv / .tsv 文件
+              <input type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={onCsvFile} />
+            </label>
+            <textarea
+              className="input min-h-[180px] font-mono text-xs leading-relaxed"
+              placeholder={"或直接粘贴 CSV。自动识别列名：\nrating,title,content,author,date,version\n或中文：评分,标题,评论,用户,时间,版本"}
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+            />
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setCsvText("rating,title,content\n2,闪退,打开几秒就崩溃闪退根本没法用\n1,广告太多,免费版广告多到没法忍要去广告还得订阅太贵\n4,导出麻烦,导出步骤太复杂格式也少希望一键导出PDF")}
+                className="inline-flex items-center gap-1 text-xs text-rock-400 hover:text-ore-300"
+              >
+                <Sparkles className="h-3 w-3" /> 填入示例 CSV
+              </button>
+              <button onClick={submitCsv} disabled={importing} className="btn-primary">
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                导入 CSV
+              </button>
             </div>
           </div>
         )}

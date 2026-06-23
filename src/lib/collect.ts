@@ -1,6 +1,8 @@
 import { fetchAppStoreReviews, lookupApp } from "./collectors/appstore";
 import { fetchGooglePlayReviews, lookupGooglePlayApp } from "./collectors/googleplay";
 import { ingestReviews } from "./ingest";
+import { filterNewerThan } from "./csv";
+import { getWatermarkByStore } from "@/db/repo";
 import type { Platform } from "./types";
 
 export interface CollectInput {
@@ -36,22 +38,23 @@ export async function collectAppReviews(input: CollectInput): Promise<CollectRes
   }
   if (!meta) return { ok: false, inserted: 0, total: 0, error: "无法解析应用信息" };
 
-  const raw =
+  const fetched =
     input.platform === "googleplay"
       ? await fetchGooglePlayReviews(input.storeId, country, 200)
       : await fetchAppStoreReviews(input.storeId, country, 8);
 
+  // Incremental: only ingest reviews newer than the last watermark for this app.
+  const watermark = await getWatermarkByStore(input.platform, input.storeId, country);
+  const raw = filterNewerThan(fetched, watermark);
+
   if (raw.length === 0) {
-    return {
-      ok: true,
-      app: meta.name,
-      inserted: 0,
-      total: 0,
-      note:
-        input.platform === "googleplay"
-          ? "Google Play 抓取依赖可选依赖，若为空可改用 App Store 或手动录入。"
-          : "未获取到评论，请尝试其它地区或稍后重试。",
-    };
+    const note =
+      fetched.length > 0
+        ? "增量采集：自上次以来没有新评论。"
+        : input.platform === "googleplay"
+        ? "Google Play 抓取依赖可选依赖，若为空可改用 App Store 或手动录入。"
+        : "未获取到评论，请尝试其它地区或稍后重试。";
+    return { ok: true, app: meta.name, inserted: 0, total: 0, note };
   }
 
   const result = await ingestReviews({

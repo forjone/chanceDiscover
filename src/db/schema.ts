@@ -146,4 +146,5 @@ export const SCHEMA_STATEMENTS: string[] = [
 export const MIGRATIONS: string[] = [
   `ALTER TABLE opportunities ADD COLUMN notes TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE opportunities ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`,
+  `ALTER TABLE apps ADD COLUMN watermark TEXT`,
 ];
