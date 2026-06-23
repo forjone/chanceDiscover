@@ -70,6 +70,7 @@ export async function runPipeline(): Promise<{
       const card = generateCard(cluster, {
         trendMomentum: signal.momentum,
         corpusSize: reviews.length,
+        youtubeKey: Boolean(process.env.YOUTUBE_API_KEY),
       });
 
       // Optionally enrich the narrative with Claude (scores stay heuristic).

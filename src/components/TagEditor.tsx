@@ -2,12 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Tag, X, Plus } from "lucide-react";
+import { Tag, X, Plus, Sparkles } from "lucide-react";
 
-export default function TagEditor({ id, initial }: { id: number; initial: string[] }) {
+export default function TagEditor({
+  id,
+  initial,
+  suggestions = [],
+}: {
+  id: number;
+  initial: string[];
+  suggestions?: string[];
+}) {
   const [tags, setTags] = useState<string[]>(initial);
   const [input, setInput] = useState("");
   const router = useRouter();
+  const openSuggestions = suggestions.filter((s) => !tags.includes(s));
 
   async function save(next: string[]) {
     setTags(next);
@@ -56,6 +65,25 @@ export default function TagEditor({ id, initial }: { id: number; initial: string
           </button>
         </span>
       </div>
+
+      {openSuggestions.length > 0 && (
+        <div className="mt-2.5 border-t border-rock-800 pt-2.5">
+          <div className="mb-1.5 flex items-center gap-1 text-[11px] text-rock-500">
+            <Sparkles className="h-3 w-3 text-ore-400" /> 建议标签（点击添加）
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {openSuggestions.map((s) => (
+              <button
+                key={s}
+                onClick={() => save([...tags, s])}
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-rock-600 px-2.5 py-0.5 text-xs text-rock-400 hover:border-ore-500/40 hover:text-ore-300"
+              >
+                <Plus className="h-3 w-3" /> {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ const opp: Opportunity = {
   suggestedFormat: "一个离线优先的小工具",
   reverseDiligence: "大厂觉得太小",
   score: { demand: 20, payment: 18, gap: 19, timing: 14, total: 72 },
+  scoreExplain: { demand: [], payment: [], gap: [], timing: [] },
   status: "new", notes: "", tags: [], createdAt: "",
 };
 

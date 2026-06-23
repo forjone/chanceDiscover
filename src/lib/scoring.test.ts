@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scoreCluster, scoreTier } from "./scoring";
+import { scoreCluster, scoreTier, explainCluster } from "./scoring";
 import type { ClusterResult } from "./clustering";
 import type { Review } from "./types";
 
@@ -78,5 +78,25 @@ describe("scoreTier", () => {
   it("maps score ranges to tiers", () => {
     expect(scoreTier(80).label).toBe("高潜力");
     expect(scoreTier(20).label).toBe("信号弱");
+  });
+});
+
+describe("explainCluster", () => {
+  it("gives reasons for every dimension", () => {
+    const e = explainCluster(cluster());
+    for (const dim of ["demand", "payment", "gap", "timing"] as const) {
+      expect(Array.isArray(e[dim])).toBe(true);
+      expect(e[dim].length).toBeGreaterThan(0);
+    }
+  });
+  it("payment reasons reflect the presence of pay-intent", () => {
+    const withPay = explainCluster(
+      cluster({ reviews: [review("would pay", 1, 1)], payIntentCount: 1 })
+    );
+    expect(withPay.payment.join("")).toContain("付费");
+  });
+  it("timing reason notes the real signal source", () => {
+    const e = explainCluster(cluster(), { trendMomentum: 0.5, youtubeKey: true });
+    expect(e.timing.join("")).toContain("YouTube");
   });
 });

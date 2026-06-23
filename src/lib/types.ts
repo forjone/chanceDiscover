@@ -60,6 +60,14 @@ export interface ScoreBreakdown {
   total: number; // 0-100 weighted
 }
 
+// Per-dimension human-readable reasons behind a score (explainability).
+export interface ScoreExplain {
+  demand: string[];
+  payment: string[];
+  gap: string[];
+  timing: string[];
+}
+
 export type OpportunityStatus = "new" | "watching" | "building" | "archived";
 
 export interface Opportunity {
@@ -76,6 +84,7 @@ export interface Opportunity {
   suggestedFormat: string;
   reverseDiligence: string; // 反向尽调：竞品为何还没解决
   score: ScoreBreakdown;
+  scoreExplain: ScoreExplain; // 各维度打分依据
   status: OpportunityStatus;
   notes: string; // 用户私人笔记
   tags: string[]; // 自定义标签

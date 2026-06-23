@@ -65,6 +65,9 @@ function toOpportunity(r: Row): Opportunity {
       timing: Number(r.score_timing),
       total: Number(r.score_total),
     },
+    scoreExplain: r.score_explain
+      ? JSON.parse(String(r.score_explain))
+      : { demand: [], payment: [], gap: [], timing: [] },
     status: String(r.status) as OpportunityStatus,
     notes: r.notes !== undefined && r.notes !== null ? String(r.notes) : "",
     tags: r.tags ? JSON.parse(String(r.tags)) : [],
@@ -334,8 +337,8 @@ export async function insertOpportunity(
     `INSERT INTO opportunities
       (run_id, cluster_id, title, pain_point, target_users, evidence, frequency,
        existing_solutions, gaps, suggested_format, reverse_diligence,
-       score_demand, score_payment, score_gap, score_timing, score_total, status, notes, tags)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       score_demand, score_payment, score_gap, score_timing, score_total, status, notes, tags, score_explain)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       runId,
       clusterId,
@@ -356,6 +359,7 @@ export async function insertOpportunity(
       status,
       notes,
       JSON.stringify(tags),
+      JSON.stringify(o.scoreExplain),
     ]
   );
   return Number(res.lastInsertRowid);

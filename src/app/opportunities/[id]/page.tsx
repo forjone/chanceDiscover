@@ -18,6 +18,8 @@ import OpportunityReviews from "@/components/OpportunityReviews";
 import NotesEditor from "@/components/NotesEditor";
 import TagEditor from "@/components/TagEditor";
 import ArtifactsPanel from "@/components/ArtifactsPanel";
+import ScoreExplain from "@/components/ScoreExplain";
+import { suggestTags } from "@/lib/tags";
 
 export const dynamic = "force-dynamic";
 
@@ -67,11 +69,12 @@ export default async function OpportunityDetail({ params }: { params: { id: stri
               <ScoreBars score={o.score} />
             </div>
           </div>
+          <ScoreExplain score={o.score} explain={o.scoreExplain} />
           <div className="card p-4">
             <div className="mb-2 text-xs text-rock-400">状态</div>
             <StatusControl id={o.id} status={o.status} />
           </div>
-          <TagEditor id={o.id} initial={o.tags} />
+          <TagEditor id={o.id} initial={o.tags} suggestions={suggestTags(o)} />
           <NotesEditor id={o.id} initial={o.notes} />
         </div>
 

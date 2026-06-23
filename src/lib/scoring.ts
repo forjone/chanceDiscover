@@ -1,4 +1,4 @@
-import type { ScoreBreakdown } from "./types";
+import type { ScoreBreakdown, ScoreExplain } from "./types";
 import { SCORE_WEIGHTS } from "./types";
 import { detectPayIntent } from "./nlp";
 import type { ClusterResult } from "./clustering";
@@ -14,6 +14,8 @@ export interface ScoringContext {
   trendMomentum?: number;
   // Total reviews across the corpus, for relative frequency scaling.
   corpusSize?: number;
+  // Whether the timing signal came from YouTube (vs review-volume fallback).
+  youtubeKey?: boolean;
 }
 
 function clamp25(n: number): number {
@@ -92,6 +94,48 @@ export function scoreCluster(cluster: ClusterResult, ctx: ScoringContext = {}): 
 
 function round(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+// Human-readable reasons behind each dimension, grounded in the same factors
+// the score uses — so users can see *why* a number is what it is.
+export function explainCluster(cluster: ClusterResult, ctx: ScoringContext = {}): ScoreExplain {
+  const distinctApps = new Set(cluster.reviews.map((r) => r.appName || r.appId)).size;
+  const payShare =
+    cluster.reviewCount > 0 ? Math.round((cluster.payIntentCount / cluster.reviewCount) * 100) : 0;
+
+  const demand: string[] = [
+    `共 ${cluster.reviewCount} 条相关评论${cluster.reviewCount >= 8 ? "（声量充足）" : cluster.reviewCount >= 4 ? "（有一定声量）" : "（声量偏小，样本有限）"}`,
+    `平均评分 ${cluster.avgRating.toFixed(1)} 星，情绪${cluster.avgSentiment < -0.3 ? "强烈负面" : cluster.avgSentiment < 0 ? "偏负面" : "中性"}`,
+  ];
+
+  const payment: string[] = [];
+  if (cluster.payIntentCount > 0) {
+    payment.push(`${cluster.payIntentCount} 条评论出现明确付费信号（占比 ${payShare}%）`);
+    payment.push("用户已表达愿意为解决该问题付费——独立开发者的强变现信号");
+  } else {
+    payment.push("未捕捉到明确付费信号（如「愿意付费」「订阅」「太贵」等）");
+    payment.push("可先以口碑获取用户，再用高级功能转化");
+  }
+
+  const gap: string[] = [
+    `${distinctApps > 1 ? `${distinctApps} 个不同产品都有同类抱怨，是品类级空白` : "目前信号集中在单一产品，需确认是否为个例"}`,
+    `该主题评分持续走低（均分 ${cluster.avgRating.toFixed(1)}），说明现有方案未让用户满意`,
+  ];
+
+  const timing: string[] = [];
+  const m = ctx.trendMomentum;
+  if (m === undefined) {
+    timing.push("暂无真实趋势数据，按中性计分（拒绝 AI 臆测）");
+  } else if (m > 0.1) {
+    timing.push(`真实热度轨迹上升（动量 ${(m * 100).toFixed(0)}），痛点正在升温`);
+  } else if (m < -0.1) {
+    timing.push(`真实热度轨迹下降（动量 ${(m * 100).toFixed(0)}），痛点可能正在退潮`);
+  } else {
+    timing.push("真实热度轨迹平稳，无明显升降");
+  }
+  timing.push(ctx.youtubeKey ? "信号来源：YouTube 发布热度" : "信号来源：评论量轨迹（真实数据兜底）");
+
+  return { demand, payment, gap, timing };
 }
 
 export function scoreTier(total: number): { label: string; tone: string } {

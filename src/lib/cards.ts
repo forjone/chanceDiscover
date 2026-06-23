@@ -1,6 +1,6 @@
-import type { Evidence, Opportunity } from "./types";
+import type { Evidence, Opportunity, ScoreExplain } from "./types";
 import type { ClusterResult } from "./clustering";
-import { scoreCluster, type ScoringContext } from "./scoring";
+import { scoreCluster, explainCluster, type ScoringContext } from "./scoring";
 
 // Generates a structured opportunity card from a pain cluster. Text is
 // data-driven and templated so it works offline; an LLM can later replace
@@ -84,6 +84,7 @@ export interface GeneratedCard {
   suggestedFormat: string;
   reverseDiligence: string;
   score: Opportunity["score"];
+  scoreExplain: ScoreExplain;
 }
 
 export function generateCard(cluster: ClusterResult, ctx: ScoringContext = {}): GeneratedCard {
@@ -100,5 +101,6 @@ export function generateCard(cluster: ClusterResult, ctx: ScoringContext = {}): 
     suggestedFormat: narrateFormat(cluster, payIntent),
     reverseDiligence: narrateReverseDiligence(cluster),
     score,
+    scoreExplain: explainCluster(cluster, ctx),
   };
 }
