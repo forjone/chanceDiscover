@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { listStoreApps, getSetting, setSetting, createRun, finishRun } from "@/db/repo";
 import { collectAppReviews } from "@/lib/collect";
 import { runPipeline } from "@/lib/pipeline";
+import { checkAndAlert } from "@/lib/alerts";
 import type { MonitoringSetting } from "../settings/route";
 
 export const runtime = "nodejs";
@@ -67,14 +68,22 @@ async function handle(req: NextRequest) {
     log.push(`挖掘失败: ${(e as Error).message}`);
   }
 
-  const result = `${apps.length} 矿源 · 新增 ${inserted} 评论 · ${mined.opportunities} 机会`;
+  // Push alerts for newly-surfaced high-potential opportunities.
+  let alerted = 0;
+  try {
+    alerted = (await checkAndAlert()).alerted;
+  } catch (e) {
+    log.push(`预警失败: ${(e as Error).message}`);
+  }
+
+  const result = `${apps.length} 矿源 · 新增 ${inserted} 评论 · ${mined.opportunities} 机会${alerted ? ` · 预警 ${alerted}` : ""}`;
   await setSetting("monitoring", {
     ...monitoring,
     lastRunAt: new Date().toISOString(),
     lastResult: result,
   });
 
-  return NextResponse.json({ ok: true, apps: apps.length, inserted, ...mined });
+  return NextResponse.json({ ok: true, apps: apps.length, inserted, ...mined, alerted });
 }
 
 export async function GET(req: NextRequest) {

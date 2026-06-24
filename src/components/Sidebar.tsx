@@ -14,6 +14,7 @@ import {
   Settings,
   Search,
   KanbanSquare,
+  FileBarChart,
 } from "lucide-react";
 
 const NAV = [
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/reviews", label: "评论数据", icon: MessageSquareText },
   { href: "/apps", label: "应用矿源", icon: AppWindow },
   { href: "/trends", label: "趋势监控", icon: TrendingUp },
+  { href: "/reports", label: "周报", icon: FileBarChart },
   { href: "/runs", label: "挖掘记录", icon: History },
   { href: "/settings", label: "设置", icon: Settings },
 ];
